@@ -35,7 +35,7 @@ if __name__ == "__main__":
         'save_dir' : './checkpoint/',
         'results_dir' : './results/lincs/',
         'n_epochs' : 100,
-        'split_key' : args_train.split_key,
+        'split_key' : 'random_split_0',
         'x_dimension' : 978,
         'hidden_layer_sizes' : [128],
         'z_dimension' : 64,
@@ -55,8 +55,11 @@ if __name__ == "__main__":
 
 
     print(os.getcwd())
-
-    adata = sc.read('./dataset/Lincs_L1000.h5ad')
+    
+    adata = sc.read('/media/mldadmin/home/s125mdg35_08/PRnet/dataset/Lincs_L1000.h5ad')
+    sc.pp.normalize_total(adata)
+    sc.pp.log1p(adata)
+    
 
     
 
@@ -80,7 +83,7 @@ if __name__ == "__main__":
                             obs_key = config_kwargs['obs_key']
                                 )
 
-    Trainer.test('./checkpoint/lincs_best_epoch_all.pt')
+    Trainer.test('./checkpoint/random_split_0_checkpoint_epoch_10.pt')
 
 
     end_time = datetime.now()

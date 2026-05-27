@@ -33,7 +33,7 @@ if __name__ == "__main__":
         'batch_size' : 512,
         'comb_num' : 1,
         'save_dir' : './checkpoint/',
-        'n_epochs' : 500,
+        'n_epochs' : 10
         'split_key' : args_train.split_key,
         'x_dimension' : 978,
         'hidden_layer_sizes' : [128],
@@ -58,7 +58,8 @@ if __name__ == "__main__":
 
     print(os.getcwd())
 
-    adata = sc.read('./dataset/Lincs_L1000.h5ad')
+    # 直接跨文件夹调用旧的数据库
+    adata = sc.read('/media/mldadmin/home/s125mdg35_08/PRnet/dataset/Lincs_L1000.h5ad')
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
 

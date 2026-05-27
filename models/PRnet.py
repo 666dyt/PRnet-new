@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-# @Author: Xiaoning Qi
-# @Date:   2022-06-23 12:35:44
-# @Last Modified by:   Xiaoning Qi
-# @Last Modified time: 2024-03-21 21:23:39
-
 from xmlrpc.client import Boolean
 import torch
 import numpy as np
@@ -17,7 +11,6 @@ from typing import Optional, Union
 
 from scipy import sparse
 import scanpy as sc
-
 
 class PRnet(nn.Module):
     """Model for PRnet class. 
@@ -99,9 +92,7 @@ class PGM(nn.Module):
         self.encoder = PEncoder(encoder_layer_sizes, self.z_dim, self.dr_rate)
         self.decoder = PDecoder(self.z_dim + self.c_dim + self.n_dim, decoder_layer_sizes, self.x_dim, self.dr_rate)
         self.CombAdaptor = PAdaptor(adaptor_layer_sizes_, self.c_dim, self.dr_rate)
-
-
-
+     
 
     def get_latent(self, x: torch.Tensor, c: torch.Tensor, n: torch.Tensor):
         
@@ -179,6 +170,9 @@ class PEncoder(nn.Module):
         mean = self.mean_encoder(x)
         
         return mean
+
+
+
 
 class PDecoder(nn.Module):
     """

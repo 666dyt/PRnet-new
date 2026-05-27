@@ -1,0 +1,12 @@
+weights/
+dataset/
+*.bin
+*.pth
+data/
+weights/
+
+.ipynb_checkpoints/
+__pycache__/
+*.csv
+*.h5
+*.pth

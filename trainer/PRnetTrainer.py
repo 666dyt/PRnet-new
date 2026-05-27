@@ -120,10 +120,10 @@ class PRnetTrainer:
             self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True)
         if self.valid_data is not None:
             self.valid_dataset = DrugDoseAnnDataset(self.valid_data, dtype='valid', obs_key=obs_key, comb_num=comb_num)
-            self.valid_dataloader = torch.utils.data.DataLoader(self.valid_dataset, batch_size=batch_size, shuffle=True)
+            self.valid_dataloader = torch.utils.data.DataLoader(self.valid_dataset, batch_size=batch_size, shuffle=False)
         if self.test_data is not None:
             self.test_dataset = DrugDoseAnnDataset(self.test_data, dtype='test', obs_key=obs_key, comb_num=comb_num)
-            self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset, batch_size=batch_size, shuffle=True)
+            self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False)
 
         if set(['NB']).issubset(loss):
             self.criterion = NBLoss()
@@ -159,12 +159,14 @@ class PRnetTrainer:
         paramsPGM = filter(lambda p: p.requires_grad, self.modelPGM.parameters())
 
         self.optimPGM = torch.optim.Adam(
-            paramsPGM, lr=lr, weight_decay= weight_decay) # consider changing the param. like weight_decay, eps, etc.
-        #self.scheduler_autoencoder = torch.optim.lr_scheduler.StepLR(self.optimPGM, step_size=10)
-        self.scheduler_autoencoder = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimPGM, 'min',factor=scheduler_factor,verbose=1,min_lr=1e-8,patience=scheduler_patience)
-
+            paramsPGM, lr=lr, weight_decay= weight_decay) 
+        self.scheduler_autoencoder = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimPGM, 'min',factor=scheduler_factor,min_lr=1e-8,patience=scheduler_patience)
+        
+        # 【新增 1】初始化详细历史记录列表
+        self.detailed_history = [] 
 
         for self.epoch in range(self.n_epochs):
+            self.modelPGM.train() # 确保开启训练模式
             loop = tqdm(enumerate(self.train_dataloader), total =len(self.train_dataloader))
             for i, data in loop:
                 self.modelPGM.zero_grad()
@@ -176,11 +178,8 @@ class PRnetTrainer:
                     control = torch.log1p(control)
                 target = target.to(self.device, dtype=torch.float32)
                 
-
                 encode_label = encode_label.to(self.device, dtype=torch.float32)
                 b_size = control.size(0)
-                
-
                 noise = self.make_noise(b_size, 10)
                 
                 gene_reconstructions = self.modelPGM(control, encode_label, noise)
@@ -189,45 +188,20 @@ class PRnetTrainer:
                 gene_vars = gene_reconstructions[:, dim:]
                 gene_vars = F.softplus(gene_vars)
 
-      
                 if set(['GUSS']).issubset(self.loss):
                     reconstruction_loss = self.criterion(input=gene_means, target=target, var=gene_vars)
-
                     dist = normal.Normal(
-                        torch.clamp(
-                            torch.Tensor(gene_means),
-                            min=1e-3,
-                            max=1e3,
-                        ),
-                        torch.clamp(
-                            torch.Tensor(gene_vars.sqrt()),
-                            min=1e-3,
-                            max=1e3,
-                        )           
+                        torch.clamp(torch.Tensor(gene_means), min=1e-3, max=1e3),
+                        torch.clamp(torch.Tensor(gene_vars.sqrt()), min=1e-3, max=1e3)           
                     )
                 if set(['NB']).issubset(self.loss):
                     reconstruction_loss =  self.criterion(gene_means, target, gene_vars)
-
                     counts, logits = self._convert_mean_disp_to_counts_logits(
-                        torch.clamp(
-                            torch.Tensor(gene_means),
-                            min=1e-3,
-                            max=1e3,
-                        ),
-                        torch.clamp(
-                            torch.Tensor(gene_vars),
-                            min=1e-3,
-                            max=1e3,
-                        )
+                        torch.clamp(torch.Tensor(gene_means), min=1e-3, max=1e3),
+                        torch.clamp(torch.Tensor(gene_vars), min=1e-3, max=1e3)
                     )
-                    
-                    dist = NegativeBinomial(
-                        total_count=counts,
-                        logits=logits
-                    )
+                    dist = NegativeBinomial(total_count=counts, logits=logits)
 
-
-                    
                 nb_sample = dist.sample()   
 
                 if set(['MSE']).issubset(self.loss):
@@ -236,141 +210,105 @@ class PRnetTrainer:
                 if set(['KL']).issubset(self.loss):
                     kl_loss = self.kl_loss(nb_sample, target)
                     reconstruction_loss += kl_loss * 0.01
-                reconstruction_loss.backward()
-
-                # Update PGM
-                self.optimPGM.step()
                 
-                #self.scheduler_autoencoder.step()
-
-                # Output training stats               
-                # Save Losses for plotting later
+                reconstruction_loss.backward()
+                self.optimPGM.step()
                 self.PGM_losses.append(reconstruction_loss.item())
 
-
                 loop.set_description(f'Epoch [{self.epoch}/{self.n_epochs}] [{i}/{len(self.train_dataloader)}]')
-                #loop.set_postfix(Loss_NB=nb_loss.item(), Loss_MSE=mse_loss.item())
                 loop.set_postfix(Loss=reconstruction_loss.item())
         
-
+            # --- 验证阶段 ---
+            self.modelPGM.eval() # 开启评估模式
             loop_v = tqdm(enumerate(self.valid_dataloader), total =len(self.valid_dataloader))
             self.r2_sum_mean = 0
             self.r2_sum_var = 0
             self.mse_sum = 0
-            self.r2_sum_mean_de = 0
-            self.r2_sum_var_de = 0
-            self.mse_sum_de = 0
+            
             for j, vdata in loop_v:
-                (control, target) = vdata['features']
-                encode_label = vdata['label']
-                data_cov_drug = vdata['cov_drug']
-
-                control = control.to(self.device, dtype=torch.float32)
-                if set(['NB']).issubset(self.loss):
-                    control = torch.log1p(control)
-                target = target.to(self.device, dtype=torch.float32)
-
-                encode_label = encode_label.to(self.device, dtype=torch.float32)
-                b_size = control.size(0)
-                
-                noise = self.make_noise(b_size, 10)
-                gene_reconstructions = self.modelPGM(control, encode_label, noise).detach()
-                dim = gene_reconstructions.size(1) // 2
-                gene_means = gene_reconstructions[:, :dim]
-                gene_vars = gene_reconstructions[:, dim:]
-                gene_vars = F.softplus(gene_vars)
-                
-                
-                if set(['GUSS']).issubset(self.loss):
-                    reconstruction_loss = self.criterion(input=gene_means, target=target, var=gene_vars)
-
-                    dist = normal.Normal(
-                        torch.clamp(
-                            torch.Tensor(gene_means),
-                            min=1e-3,
-                            max=1e3,
-                        ),
-                        torch.clamp(
-                            torch.Tensor(gene_vars.sqrt()),
-                            min=1e-3,
-                            max=1e3,
-                        )           
-                    )
-                if set(['NB']).issubset(self.loss):
-                    reconstruction_loss =  self.criterion(gene_means, target, gene_vars)
-
-                    counts, logits = self._convert_mean_disp_to_counts_logits(
-                        torch.clamp(
-                            torch.Tensor(gene_means),
-                            min=1e-3,
-                            max=1e3,
-                        ),
-                        torch.clamp(
-                            torch.Tensor(gene_vars),
-                            min=1e-3,
-                            max=1e3,
+                with torch.no_grad():
+                    (control, target) = vdata['features']
+                    encode_label = vdata['label']
+                    control = control.to(self.device, dtype=torch.float32)
+                    if set(['NB']).issubset(self.loss):
+                        control = torch.log1p(control)
+                    target = target.to(self.device, dtype=torch.float32)
+                    encode_label = encode_label.to(self.device, dtype=torch.float32)
+                    
+                    noise = self.make_noise(control.size(0), 10)
+                    gene_reconstructions = self.modelPGM(control, encode_label, noise).detach()
+                    dim = gene_reconstructions.size(1) // 2
+                    gene_means = gene_reconstructions[:, :dim]
+                    gene_vars = F.softplus(gene_reconstructions[:, dim:])
+                    
+                    if set(['NB']).issubset(self.loss):
+                        counts, logits = self._convert_mean_disp_to_counts_logits(
+                            torch.clamp(gene_means, min=1e-3, max=1e3),
+                            torch.clamp(gene_vars, min=1e-3, max=1e3)
                         )
-                    )
+                        dist = NegativeBinomial(total_count=counts, logits=logits)
+                    else:
+                        dist = normal.Normal(gene_means, gene_vars.sqrt())
+
+                    nb_sample = dist.sample().cpu().numpy()
+                    y_true = target.cpu().numpy()
                     
-                    dist = NegativeBinomial(
-                        total_count=counts,
-                        logits=logits
-                    )
+                    r2_m = r2_score(y_true.mean(0), nb_sample.mean(0))
+                    self.r2_sum_mean += r2_m
+                    self.r2_sum_var += r2_score(y_true.var(0), nb_sample.var(0))
+                    self.mse_sum += mean_squared_error(y_true, nb_sample)
 
-                    
-                nb_sample = dist.sample().cpu().numpy()
-                yp_m = nb_sample.mean(0)
-                yp_v = nb_sample.var(0)
+                    loop_v.set_description(f'Valid [{self.epoch}/{self.n_epochs}]')
+                    loop_v.set_postfix(r2=r2_m)
 
-                y_true = target.cpu().numpy()
-                yt_m = y_true.mean(axis=0)
-                yt_v = y_true.var(axis=0)
-                
-                
-                r2_score_mean = r2_score(yt_m, yp_m)
-                self.r2_sum_mean += r2_score_mean
-                r2_score_var = r2_score(yt_v, yp_v)
-                self.r2_sum_var += r2_score_var               
-
-                mse_score =  mean_squared_error(y_true, nb_sample)
-                self.mse_sum += mse_score
-
-                loop_v.set_description(f'Epoch [{self.epoch}/{self.n_epochs}] [{j}/{len(self.valid_dataloader)}]')
-                loop_v.set_postfix(r2_score_mean=r2_score_mean, r2_score_var=r2_score_var, mse_score=mse_score)
-
-
-            self.r2_score_mean.append(self.r2_sum_mean/len(self.valid_dataloader))
+            # 更新指标列表
+            cur_r2 = self.r2_sum_mean/len(self.valid_dataloader)
+            cur_mse = self.mse_sum/len(self.valid_dataloader)
+            self.r2_score_mean.append(cur_r2)
             self.r2_score_var.append(self.r2_sum_var/len(self.valid_dataloader))
-            self.mse_score.append(self.mse_sum/len(self.valid_dataloader))
+            self.mse_score.append(cur_mse)
 
+            # 【新增 2】记录本轮数据到详细历史清单
+            self.detailed_history.append({
+                'epoch': self.epoch,
+                'r2_mean': cur_r2,
+                'mse': cur_mse
+            })
 
-            print('mean mse of validation datastes:', self.mse_score[-1])
-            print('mean r2 of validation datastes:', self.r2_score_mean[-1])
-            #print('mean mse DEG of validation datastes:', self.mse_score_de[-1])
-            #print('mean r2 DEG of validation datastes:', self.r2_score_mean_de[-1])  
-            self.scheduler_autoencoder.step(self.mse_score[-1])                       
+            print(f'Epoch {self.epoch} Result: MSE={cur_mse:.4f}, R2={cur_r2:.4f}')
+            self.scheduler_autoencoder.step(cur_mse)
 
-         
+            # --- 保存逻辑 ---
+            # 1. 自动保存表现最好的模型 (基于 MSE)
             if self.mse_score[-1] < self.best_mse:
                 self.patient = 0
-                print("Saving best state of network...")
-                print("Best State was in Epoch", self.epoch)
-                self.best_state_dictG = self.modelPGM.module.state_dict()
-                torch.save(self.best_state_dictG, self.model_save_dir+self.split_key+'_best_epoch_all.pt')
                 self.best_mse = self.mse_score[-1]
+                print(f"Saving best model at epoch {self.epoch}")
+                # 注意：如果不是分布式训练，去掉 .module
+                state_to_save = self.modelPGM.module.state_dict() if hasattr(self.modelPGM, 'module') else self.modelPGM.state_dict()
+                torch.save(state_to_save, self.model_save_dir+self.split_key+'_best_epoch_all.pt')
+            
+            # 【新增 3】每 10 轮强行备份一次模型，满足老师的“过程回溯”要求
+            if (self.epoch + 1) % 10 == 0:
+                cp_path = self.model_save_dir + f'{self.split_key}_checkpoint_epoch_{self.epoch+1}.pt'
+                state_to_save = self.modelPGM.module.state_dict() if hasattr(self.modelPGM, 'module') else self.modelPGM.state_dict()
+                torch.save(state_to_save, cp_path)
+                print(f"Checkpoint saved at {cp_path}")
+
             elif self.patient <= 20:
                 self.patient += 1   
             else:
-                print("The mse of validation datastes has not improve in 20 epochs!")
+                print("Early stopping triggered at epoch", self.epoch)
                 break
 
+        # --- 训练完全结束后的日志导出 ---
+        loss_df = pd.DataFrame({'Loss_PGM': self.PGM_losses})
+        loss_df.to_csv(self.model_save_dir+self.split_key+'_loss_comb.csv')
         
-        loss_dict = {'Loss_PGM': self.PGM_losses}
-        metrics_dict = {'r2':self.r2_score_mean, 'mse':self.mse_score}
-        loss_df = pd.DataFrame(loss_dict)
-        metrics_df = pd.DataFrame(metrics_dict)
-        loss_df.to_csv(self.model_save_dir+self.split_key+'loss_comb.csv')
-        metrics_df.to_csv(self.model_save_dir+self.split_key+'metrics_comb.csv')
+        # 【新增 4】导出详细的每一轮指标表，方便组会画图
+        detailed_df = pd.DataFrame(self.detailed_history)
+        detailed_df.to_csv(self.model_save_dir+self.split_key+'_detailed_metrics.csv', index=False)
+        print("Training Complete. Detailed log saved.")
        
 
     def test(self, model_path, return_dict = False):
