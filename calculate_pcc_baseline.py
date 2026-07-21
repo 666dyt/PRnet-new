@@ -31,7 +31,7 @@ delta_true = y_true - x_true
 delta_pre = y_pre - x_true
 
 # ==========================================
-# 指标 1: 单样本实例级评估 (预期 0.4+ 那个高分)
+# 指标 1: 单样本实例级评估
 # ==========================================
 print("Calculating Instance-level PCC...")
 pccs_inst = []
@@ -42,7 +42,7 @@ for t, p in zip(delta_true, delta_pre):
 pcc_inst_final = np.mean(pccs_inst)
 
 # ==========================================
-# 指标 2: 细粒度聚合评估 Cov_compounds (预期 0.22+ 那个硬核分)
+# 指标 2: 细粒度聚合评估 Cov_compounds
 # ==========================================
 print("Calculating Group-level (Cov_compounds) PCC...")
 df_true = pd.DataFrame(delta_true, index=drugs_cov)
@@ -69,6 +69,6 @@ plt.ylabel('Predicted logFC')
 plt.grid(True, linestyle=':', alpha=0.6)
 plt.savefig('./results/lincs/pcc_random_split_0_final.png')
 
-print(f"\n🎉 --- 最终真相大白结果 --- 🎉")
+print(f"\n --- 最终结果 --- ")
 print(f"Instance-level Pearson (你期待的 0.4+): {pcc_inst_final:.4f}")
 print(f"Cov_compounds Pearson (你期待的 0.22+): {pcc_cov_final:.4f}")
