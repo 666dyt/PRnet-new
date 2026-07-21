@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-# @Author: Xiaoning Qi
-# @Date:   2022-06-13 09:47:44
-# @Last Modified by:   Xiaoning Qi
-# @Last Modified time: 2024-11-04 15:56:30
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
