@@ -38,7 +38,7 @@ def load_biological_mask(gmt_file_path, adata, c_dim=64, z_dim=64):
         pathway_name = parts[0]
         pathway_genes = parts[2:] # 从第三列开始是具体的基因名
         
-        # 4. 匹配基因：如果在你的 978 个基因里，就把对应位置设为 1
+        # 4. 匹配基因：如果在978个基因里，就把对应位置设为 1
         match_count = 0
         for gene in pathway_genes:
             if gene in gene_list:
@@ -50,7 +50,7 @@ def load_biological_mask(gmt_file_path, adata, c_dim=64, z_dim=64):
 
     # 5. 补齐药物嵌入维度 (c_dim = 64)
     # 因为输入是 [x, c] 拼起来的，所以下方要再垫上 64 行
-    # 为了保证右路（通路层）只看基因表达而不看药物输入，这里全设为 0
+    # 为了保证右路（通路层）只看基因表达而不看药物输入，这个地方全设为 0
     drug_mask = np.zeros((c_dim, z_dim))
     
     # 6. 上下拼接得到最终的 (1042, 64) 矩阵
@@ -58,22 +58,6 @@ def load_biological_mask(gmt_file_path, adata, c_dim=64, z_dim=64):
     final_mask = torch.tensor(final_mask_np, dtype=torch.float32)
     
     return final_mask
-
-# ==========================================
-# 在 train_lincs_Bio_En.py 中的使用方法：
-# ==========================================
-# adata = sc.read('/media/mldadmin/home/s125mdg35_08/PRnet/dataset/Lincs_L1000.h5ad')
-# ... 预处理代码 ...
-
-# 下载下来的 gmt 文件路径
-# gmt_path = './dataset/h.all.v2023.1.Hs.symbols.gmt' 
-
-# 生成 mask
-# mask = load_biological_mask(gmt_path, adata)
-
-# 然后把 mask 传给 Trainer
-# Trainer = PRnetTrainer(..., mask=mask)
-
 
 def parse_args():
     parse = argparse.ArgumentParser(description='perturbation-conditioned generative model')  
@@ -93,7 +77,7 @@ if __name__ == "__main__":
         'batch_size' : 512,
         'comb_num' : 1,
         'save_dir' : './checkpoint/PRnet_Bio_En/',
-        'save_frequency': 10, # 新增：设定每 10 个 epoch 保存一次 [cite: 49]
+        'save_frequency': 10, # Add：设定每 10 个 epoch 保存一次 [cite: 49]
         'n_epochs' : 500,
         'split_key' : args_train.split_key,
         'x_dimension' : 978,
@@ -124,7 +108,6 @@ if __name__ == "__main__":
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
 
-    # 使用绝对路径是最稳妥的做法
     gmt_path = '/media/mldadmin/home/s125mdg35_08/PRnet baseline/PRnet/dataset/h.all.v2026.1.Hs.symbols.gmt'
     print("正在生成生物学通路 Mask...")
     # 生成 mask
