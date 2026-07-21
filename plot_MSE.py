@@ -28,18 +28,17 @@ df_epoch = df.groupby('Epoch')['Loss_PGM'].mean().reset_index()
 # ==========================================
 # 第二步：智能计算 Y 轴显示范围 (避开初始巨大峰值)
 # ==========================================
-# 我们忽略前 3 个 Epoch 的极高初始值，去寻找真实收敛阶段的最大值和最小值
+# 忽略前 3 个 Epoch 的极高初始值，去寻找真实收敛阶段的最大值和最小值
 zoom_start_epoch = 3 
 y_max = df_epoch[df_epoch['Epoch'] > zoom_start_epoch]['Loss_PGM'].max()
 y_min = df_epoch['Loss_PGM'].min()
 
-# 上下各留 10% 的空白，让图表更好看
 padding = (y_max - y_min) * 0.1
 ylim_top = y_max + padding
 ylim_bottom = y_min - padding
 
 # ==========================================
-# 第三步：绘制高清放大的折线图
+# 第三步：绘制折线图
 # ==========================================
 sns.set_theme(style="ticks", context="talk")
 plt.rcParams['font.sans-serif'] = ['Arial']
@@ -49,10 +48,10 @@ plt.figure(figsize=(10, 6))
 # 画线
 sns.lineplot(data=df_epoch, x='Epoch', y='Loss_PGM', color='red', linewidth=2.5)
 
-# 核心操作：放大 Y 轴！
+# 放大 Y 轴
 plt.ylim(ylim_bottom, ylim_top)
 
-# 设置标题和标签
+# 标题和标签
 plt.title('Training Loss over Epochs (Averaged & Zoomed)', fontsize=16, pad=15)
 plt.xlabel('Epoch', fontsize=14)
 plt.ylabel('PGM Loss', fontsize=14)
@@ -65,4 +64,4 @@ plt.tight_layout()
 save_path = './results/Training_Loss_Curve_Fixed.png'
 os.makedirs(os.path.dirname(save_path), exist_ok=True)
 plt.savefig(save_path, dpi=300)
-print(f"✅ 修正后的放大版学习曲线已保存至: {save_path}")
+print(f"修正后的学习曲线已保存至: {save_path}")
