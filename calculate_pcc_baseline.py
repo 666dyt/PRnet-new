@@ -70,5 +70,5 @@ plt.grid(True, linestyle=':', alpha=0.6)
 plt.savefig('./results/lincs/pcc_random_split_0_final.png')
 
 print(f"\n --- 最终结果 --- ")
-print(f"Instance-level Pearson (你期待的 0.4+): {pcc_inst_final:.4f}")
-print(f"Cov_compounds Pearson (你期待的 0.22+): {pcc_cov_final:.4f}")
+print(f"Instance-level Pearson: {pcc_inst_final:.4f}")
+print(f"Cov_compounds Pearson: {pcc_cov_final:.4f}")
