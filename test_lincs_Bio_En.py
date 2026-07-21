@@ -13,7 +13,7 @@ import torch
 # 【修改点 1】：导入新的带有生物学分支的 Trainer
 from trainer.PRnetTrainer_Bio_En import PRnetTrainer
 
-# 【修改点 2】：引入 Mask 生成函数 (与训练时完全一致，测试时必须原样构建网络)
+# 【修改点 2】：引入 Mask 生成函数
 def load_biological_mask(gmt_file_path, adata, c_dim=64, z_dim=64):
     gene_list = list(adata.var_names)
     x_dim = len(gene_list)
@@ -51,8 +51,8 @@ if __name__ == "__main__":
     config_kwargs = {
         'batch_size' : 512,
         'comb_num' : 1,
-        'save_dir' : './checkpoint/PRnet_Bio_En/',       # 【修改点 3】：指向新模型的保存目录
-        'results_dir' : './results/PRnet_Bio_En/',       # 【修改点 3】：指向新模型的测试结果输出目录
+        'save_dir' : './checkpoint/PRnet_Bio_En/',       
+        'results_dir' : './results/PRnet_Bio_En/',      
         'n_epochs' : 100,
         'split_key' : 'random_split_0',
         'x_dimension' : 978,
@@ -106,8 +106,7 @@ if __name__ == "__main__":
         mask=mask  # 【修改点 5】：传入测试所需的 mask
     )
 
-    # 【修改点 6】：调用底层的 test 方法，路径指向你刚训练好的 best_model
-    # 确保之前训练时保存的文件名叫 best_model.pt，如果不是，请替换为实际的文件名（比如 random_split_0_checkpoint_epoch_500.pt）
+    # 【修改点 6】：调用底层的 test 方法
     checkpoint_path = './checkpoint/PRnet_Bio_En/random_split_0_best_epoch_all.pt'
     print(f"正在加载模型权重进行测试: {checkpoint_path}")
     Trainer.test(checkpoint_path)
