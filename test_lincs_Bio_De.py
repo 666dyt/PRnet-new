@@ -10,13 +10,12 @@ import numpy as np
 import torch
 
 # ==========================================
-# 【核心修改点 1】：导入你修改过 Decoder 的 Trainer
+# 【核心修改点 1】：导入修改过 Decoder 的 Trainer
 # ==========================================
-# 假设你为新网络写了一个新的 Trainer 文件（比如 PRnetTrainer_Bio_De.py）
-# 如果你没有改 Trainer 文件名，只是改了它里面 import 的底层网络，那就保持你实际的文件名
-from trainer.PRnetTrainer_Bio_En import PRnetTrainer  # <--- 请根据你的实际情况修改文件名
 
-# 引入 Mask 生成函数 (如果你的 Decoder 依然依赖这个生物学 Mask 的话)
+from trainer.PRnetTrainer_Bio_En import PRnetTrainer 
+
+# 引入 Mask 生成函数 
 def load_biological_mask(gmt_file_path, adata, c_dim=64, z_dim=64):
     gene_list = list(adata.var_names)
     x_dim = len(gene_list)
@@ -55,8 +54,8 @@ if __name__ == "__main__":
     config_kwargs = {
         'batch_size' : 512,
         'comb_num' : 1,
-        'save_dir' : './checkpoint/PRnet_Bio_De/',       # <--- 指向你新训练的 Decoder 模型的保存目录
-        'results_dir' : './results/PRnet_Bio_De/',       # <--- 测试结果(CSV矩阵)的输出目录，换个新名字防止覆盖旧数据
+        'save_dir' : './checkpoint/PRnet_Bio_De/',       
+        'results_dir' : './results/PRnet_Bio_De/',       
         'split_key' : 'random_split_0',
         'x_dimension' : 978,
         'hidden_layer_sizes' : [128],
@@ -75,7 +74,7 @@ if __name__ == "__main__":
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
     
-    # 生成 Mask (如果你改完的 Decoder 不需要传 mask，可以在 Trainer 初始化里把它去掉)
+    # 生成 Mask 
     gmt_path = '/media/mldadmin/home/s125mdg35_08/PRnet/dataset/h.all.v2026.1.Hs.symbols.gmt'
     print("Testing Stage: 正在生成生物学通路 Mask...")
     mask = load_biological_mask(gmt_path, adata)
@@ -106,7 +105,6 @@ if __name__ == "__main__":
     # ==========================================
     # 【核心修改点 3】：加载最强权重文件
     # ==========================================
-    # 确保文件名与你新训练出来的 best epoch 文件名一致
     checkpoint_path = os.path.join(config_kwargs['save_dir'], 'random_split_0_best_epoch_all.pt')
     print(f"Testing Stage: 正在加载模型权重进行测试: {checkpoint_path}")
     
