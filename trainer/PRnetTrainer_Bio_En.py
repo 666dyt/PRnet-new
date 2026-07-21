@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-# @Author: Xiaoning Qi
-# @Date:   2022-06-23 02:24:40
-# @Last Modified by:   Xiaoning Qi
-# @Last Modified time: 2024-10-31 15:26:11
 import os
 from sklearn import metrics
 
@@ -289,7 +284,7 @@ class PRnetTrainer:
                 state_to_save = self.modelPGM.module.state_dict() if hasattr(self.modelPGM, 'module') else self.modelPGM.state_dict()
                 torch.save(state_to_save, self.model_save_dir+self.split_key+'_best_epoch_all.pt')
             
-            # 【新增 3】每 10 轮强行备份一次模型，满足老师的“过程回溯”要求
+            # 【新增 3】每 10 轮强行备份一次模型
             if (self.epoch + 1) % 10 == 0:
                 cp_path = self.model_save_dir + f'{self.split_key}_checkpoint_epoch_{self.epoch+1}.pt'
                 state_to_save = self.modelPGM.module.state_dict() if hasattr(self.modelPGM, 'module') else self.modelPGM.state_dict()
@@ -306,7 +301,7 @@ class PRnetTrainer:
         loss_df = pd.DataFrame({'Loss_PGM': self.PGM_losses})
         loss_df.to_csv(self.model_save_dir+self.split_key+'_loss_comb.csv')
         
-        # 【新增 4】导出详细的每一轮指标表，方便组会画图
+        # 【新增 4】导出详细的每一轮指标表
         detailed_df = pd.DataFrame(self.detailed_history)
         detailed_df.to_csv(self.model_save_dir+self.split_key+'_detailed_metrics.csv', index=False)
         print("Training Complete. Detailed log saved.")
